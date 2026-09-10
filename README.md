@@ -1,12 +1,13 @@
 # AI Assistant
 
-A production-ready Flask web application for prompt-engineering experiments. It provides four AI functions, each with three prompt variants: question answering, text summarization, creative content generation, and practical advice.
+A production-ready Flask web application for prompt-engineering experiments powered by Google Gemini. It provides four AI functions, each with three prompt variants: question answering, text summarization, creative content generation, and practical advice.
 
 ## Features
 
 - Four core AI functions with 3 prompt variants each.
+- Gemini 3.8 Flash backend using the official Google Gen AI Python SDK.
 - Input validation and maximum request size protection.
-- Friendly handling for missing API keys, rate limits, timeouts, connection failures, and upstream API errors.
+- Friendly handling for missing API keys, quota/rate limits, authentication errors, timeouts, connection failures, and upstream API errors.
 - Responsive browser interface with accessible labels, keyboard focus states, loading/status messages, and mobile layout.
 - Feedback buttons and a deployment-safe stateless feedback endpoint. The app intentionally does not write feedback to the local filesystem because Render service filesystems are not a durable application database.
 - `/health` endpoint for deployment checks.
@@ -34,10 +35,12 @@ A production-ready Flask web application for prompt-engineering experiments. It 
 Set these on the server or in a local environment. Never commit `.env` or an API key.
 
 ```text
-OPENAI_API_KEY=
-OPENAI_MODEL=gpt-4o-mini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.8-flash
 MAX_INPUT_LENGTH=12000
 ```
+
+`GEMINI_API_KEY` is the only secret required by the application. Google documents `GEMINI_API_KEY` as the standard environment variable for Gemini Developer API access. citeturn0search2turn1search0
 
 ## Local setup
 
@@ -50,7 +53,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Then configure `OPENAI_API_KEY` in your environment and run:
+Then configure `GEMINI_API_KEY` in your environment and run:
 
 ```bash
 python app.py
@@ -68,7 +71,7 @@ Run the full mocked regression suite with:
 pytest -q
 ```
 
-The tests cover startup, homepage, health, all prompt variants, validation, malformed JSON, large inputs, missing API key behavior, feedback validation, feedback handling, stats, and API 404 behavior. The OpenAI service is mocked; no real API credits are required.
+The tests cover startup, homepage, health, all prompt variants, validation, malformed JSON, large inputs, missing API key behavior, Gemini quota/rate-limit handling, feedback validation, feedback handling, stats, and API 404 behavior. The Gemini service is mocked; no real API credits are required.
 
 ## Deployment on Render
 
@@ -79,9 +82,9 @@ Build: pip install -r requirements.txt
 Start: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 90
 ```
 
-Set `OPENAI_API_KEY` as a Render environment variable. The key is server-side only and is never exposed to browser JavaScript.
+Set `GEMINI_API_KEY` as a Render environment variable and keep it server-side. Set `GEMINI_MODEL` to `gemini-3.8-flash` unless you intentionally choose another compatible Gemini model. Gemini 3.8 Flash is currently the stable model ID documented by Google. citeturn0search9
 
-The `/health` endpoint reports whether the AI key is configured and is suitable for a basic service health check.
+The `/health` endpoint reports whether the Gemini key is configured and is suitable for a basic service health check.
 
 ## Production considerations
 
