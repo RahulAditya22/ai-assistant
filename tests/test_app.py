@@ -1,7 +1,5 @@
 import pytest
 
-from openai import RateLimitError
-
 from app import MAX_INPUT_LENGTH, PROMPT_LIBRARY, create_app, rate_limit_message
 
 
@@ -25,6 +23,15 @@ class FakeCompletions:
 class FakeClient:
     class chat:
         completions = FakeCompletions()
+
+
+class FakeRateLimitError:
+    def __init__(self, message, body):
+        self.message = message
+        self.body = body
+
+    def __str__(self):
+        return self.message
 
 
 @pytest.fixture()
@@ -70,10 +77,9 @@ def test_alternate_key_spelling_is_supported(monkeypatch):
 
 
 def test_quota_rate_limit_message_is_actionable():
-    error = RateLimitError(
+    error = FakeRateLimitError(
         "quota exceeded",
-        response=None,
-        body={"error": {"code": "insufficient_quota"}},
+        {"error": {"code": "insufficient_quota"}},
     )
     message = rate_limit_message(error)
     assert "quota or billing limit" in message
@@ -81,10 +87,9 @@ def test_quota_rate_limit_message_is_actionable():
 
 
 def test_temporary_rate_limit_message_is_actionable():
-    error = RateLimitError(
+    error = FakeRateLimitError(
         "rate limit reached",
-        response=None,
-        body={"error": {"code": "rate_limit_exceeded"}},
+        {"error": {"code": "rate_limit_exceeded"}},
     )
     message = rate_limit_message(error)
     assert "temporarily rate-limiting" in message
