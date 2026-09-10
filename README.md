@@ -40,7 +40,7 @@ GEMINI_MODEL=gemini-3.8-flash
 MAX_INPUT_LENGTH=12000
 ```
 
-`GEMINI_API_KEY` is the only secret required by the application. Google documents `GEMINI_API_KEY` as the standard environment variable for Gemini Developer API access. citeturn0search2turn1search0
+`GEMINI_API_KEY` is the only secret required by the application.
 
 ## Local setup
 
@@ -82,7 +82,7 @@ Build: pip install -r requirements.txt
 Start: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 90
 ```
 
-Set `GEMINI_API_KEY` as a Render environment variable and keep it server-side. Set `GEMINI_MODEL` to `gemini-3.8-flash` unless you intentionally choose another compatible Gemini model. Gemini 3.8 Flash is currently the stable model ID documented by Google. citeturn0search9
+Set `GEMINI_API_KEY` as a Render environment variable and keep it server-side. Set `GEMINI_MODEL` to `gemini-3.8-flash` unless you intentionally choose another compatible Gemini model.
 
 The `/health` endpoint reports whether the Gemini key is configured and is suitable for a basic service health check.
 
