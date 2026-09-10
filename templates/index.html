@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="A prompt-engineering AI assistant for questions, summaries, creative content, and advice.">
+  <title>AI Assistant</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <p class="eyebrow">PROMPT ENGINEERING PROJECT</p>
+      <h1>AI Assistant</h1>
+      <p class="subtitle">Ask questions, summarize text, create content, or get practical advice.</p>
+    </header>
+
+    <nav class="tabs" aria-label="Assistant functions" id="tabs">
+      <button type="button" class="tab active" data-fn="answer">Answer Questions</button>
+      <button type="button" class="tab" data-fn="summarize">Summarize Text</button>
+      <button type="button" class="tab" data-fn="generate">Generate Creative Content</button>
+      <button type="button" class="tab" data-fn="advice">Provide Advice</button>
+    </nav>
+
+    <main>
+      <section class="panel" aria-labelledby="work-title">
+        <h2 id="work-title" class="sr-only">AI task</h2>
+        <label for="promptSelect">Prompt style</label>
+        <select id="promptSelect" aria-describedby="promptHelp"></select>
+        <p id="promptHelp" class="field-help">Choose how you want the model to structure its response.</p>
+
+        <label for="userInput">Your input</label>
+        <textarea id="userInput" rows="8" maxlength="12000" placeholder="Type your question, text to summarize, creative prompt, or topic..."></textarea>
+        <p class="field-help"><span id="charCount">0</span>/12,000 characters</p>
+
+        <button type="button" id="runBtn">Run assistant</button>
+        <p id="statusMessage" class="status" role="status" aria-live="polite"></p>
+
+        <div id="resultBox" class="result hidden" aria-live="polite">
+          <div class="result-meta" id="resultMeta"></div>
+          <div id="resultText" class="result-text"></div>
+          <div class="feedback" aria-label="Response feedback">
+            <span>Was this response helpful?</span>
+            <button type="button" id="thumbsUp" class="fb-btn">Yes</button>
+            <button type="button" id="thumbsDown" class="fb-btn">No</button>
+            <span id="fbThanks" class="hidden">Thanks for the feedback.</span>
+          </div>
+        </div>
+      </section>
+
+      <aside class="stats" aria-labelledby="stats-title">
+        <h2 id="stats-title">Feedback</h2>
+        <div id="statsBox">Loading…</div>
+      </aside>
+    </main>
+
+    <footer>
+      <p>Flask · OpenAI API · Prompt variants · Render-ready</p>
+    </footer>
+  </div>
+
+  <script>
+    const PROMPT_LIBRARY = {{ prompt_library | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='script.js') }}" defer></script>
+</body>
+</html>
