@@ -37,13 +37,34 @@ PROMPT_LIBRARY: dict[str, list[dict[str, str]]] = {
 }
 
 
+def get_openai_api_key() -> str | None:
+    """Read the configured API key at application creation time.
+
+    OPENAI_API_KEY is the canonical name. OPEN_AI_API_KEY is retained as a
+    backwards-compatible fallback for the existing Render environment.
+    """
+    return os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
+
+
+def rate_limit_message(error: RateLimitError) -> str:
+    """Return an actionable message for the different OpenAI 429 cases."""
+    body = getattr(error, "body", None)
+    if isinstance(body, dict):
+        code = body.get("code") or body.get("error", {}).get("code")
+        if code in {"insufficient_quota", "credit_balance_exhausted", "organization_usage_limit_exceeded", "organization_spend_limit_exceeded", "project_spend_limit_exceeded"}:
+            return "OpenAI API quota or billing limit reached. Check your OpenAI API billing, credits, and usage limits, then try again."
+
+    message = str(error).lower()
+    if "insufficient_quota" in message or "quota" in message or "credit_balance" in message:
+        return "OpenAI API quota or billing limit reached. Check your OpenAI API billing, credits, and usage limits, then try again."
+
+    return "The AI service is temporarily rate-limiting requests. Please wait a moment and try again."
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
-
-    # Accept the intended variable name and the typo currently present in the
-    # deployed environment. The canonical name remains OPENAI_API_KEY.
-    api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
+    api_key = get_openai_api_key()
     client = OpenAI(api_key=api_key) if api_key else None
 
     @app.get("/")
@@ -100,8 +121,8 @@ def create_app() -> Flask:
                 return jsonify({"error": "The AI service returned an empty response."}), 502
         except APITimeoutError:
             return jsonify({"error": "The AI service took too long to respond. Please try again."}), 504
-        except RateLimitError:
-            return jsonify({"error": "The AI service is rate-limiting requests. Please try again shortly."}), 429
+        except RateLimitError as error:
+            return jsonify({"error": rate_limit_message(error)}), 429
         except APIConnectionError:
             return jsonify({"error": "Unable to reach the AI service. Please try again."}), 502
         except APIError:
