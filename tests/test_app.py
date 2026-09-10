@@ -3,32 +3,23 @@ import pytest
 from app import MAX_INPUT_LENGTH, PROMPT_LIBRARY, create_app, rate_limit_message
 
 
-class FakeMessage:
-    content = "Mocked AI response"
-
-
-class FakeChoice:
-    message = FakeMessage()
-
-
 class FakeResponse:
-    choices = [FakeChoice()]
+    text = "Mocked AI response"
 
 
-class FakeCompletions:
-    def create(self, **kwargs):
+class FakeModels:
+    def generate_content(self, **kwargs):
         return FakeResponse()
 
 
 class FakeClient:
-    class chat:
-        completions = FakeCompletions()
+    models = FakeModels()
 
 
-class FakeRateLimitError:
-    def __init__(self, message, body):
+class FakeGeminiError:
+    def __init__(self, message, status_code=None):
         self.message = message
-        self.body = body
+        self.status_code = status_code
 
     def __str__(self):
         return self.message
@@ -36,9 +27,8 @@ class FakeRateLimitError:
 
 @pytest.fixture()
 def app(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    monkeypatch.delenv("OPEN_AI_API_KEY", raising=False)
-    monkeypatch.setattr("app.OpenAI", lambda api_key: FakeClient())
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr("app.genai.Client", lambda api_key: FakeClient())
     application = create_app()
     application.config.update(TESTING=True)
     return application
@@ -58,39 +48,21 @@ def test_homepage(client):
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.get_json()["status"] == "ok"
-
-
-def test_alternate_key_spelling_is_supported(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setenv("OPEN_AI_API_KEY", "test-key")
-    monkeypatch.setattr("app.OpenAI", lambda api_key: FakeClient())
-    application = create_app()
-    application.config.update(TESTING=True)
-    response = application.test_client().post("/api/run", json={
-        "function": "answer",
-        "prompt_id": "concise",
-        "input": "Hello",
-    })
-    assert response.status_code == 200
-    assert response.get_json()["result"] == "Mocked AI response"
+    body = response.get_json()
+    assert body["status"] == "ok"
+    assert body["ai_configured"] is True
+    assert body["model"] == "gemini-3.8-flash"
 
 
 def test_quota_rate_limit_message_is_actionable():
-    error = FakeRateLimitError(
-        "quota exceeded",
-        {"error": {"code": "insufficient_quota"}},
-    )
+    error = FakeGeminiError("RESOURCE_EXHAUSTED: quota exceeded", status_code=429)
     message = rate_limit_message(error)
     assert "quota or billing limit" in message
-    assert "billing" in message
+    assert "Gemini API" in message
 
 
 def test_temporary_rate_limit_message_is_actionable():
-    error = FakeRateLimitError(
-        "rate limit reached",
-        {"error": {"code": "rate_limit_exceeded"}},
-    )
+    error = FakeGeminiError("rate limit reached", status_code=429)
     message = rate_limit_message(error)
     assert "temporarily rate-limiting" in message
 
@@ -143,8 +115,7 @@ def test_large_input_rejected(client):
 
 
 def test_missing_key_is_clean(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("OPEN_AI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     application = create_app()
     application.config.update(TESTING=True)
     response = application.test_client().post("/api/run", json={
@@ -153,7 +124,7 @@ def test_missing_key_is_clean(monkeypatch):
         "input": "Hello",
     })
     assert response.status_code == 503
-    assert response.get_json()["error"] == "AI service is not configured yet. Add OPENAI_API_KEY to the server environment."
+    assert response.get_json()["error"] == "AI service is not configured yet. Add GEMINI_API_KEY to the server environment."
 
 
 def test_feedback_valid(client):
