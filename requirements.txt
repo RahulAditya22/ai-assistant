@@ -1,0 +1,4 @@
+Flask>=3.1,<4
+openai>=1.30,<3
+gunicorn>=23,<24
+pytest>=8,<9
