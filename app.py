@@ -1,4 +1,4 @@
-"""Production-ready Flask AI Assistant application."""
+"""Production-ready Flask AI Assistant application using Gemini."""
 
 from __future__ import annotations
 
@@ -7,11 +7,12 @@ import time
 from typing import Any
 
 from flask import Flask, jsonify, render_template, request
-from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLimitError
+from google import genai
+from google.genai import types
 
 
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "12000"))
-MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 PROMPT_LIBRARY: dict[str, list[dict[str, str]]] = {
     "answer": [
@@ -37,35 +38,33 @@ PROMPT_LIBRARY: dict[str, list[dict[str, str]]] = {
 }
 
 
-def get_openai_api_key() -> str | None:
-    """Read the configured API key at application creation time.
-
-    OPENAI_API_KEY is the canonical name. OPEN_AI_API_KEY is retained as a
-    backwards-compatible fallback for the existing Render environment.
-    """
-    return os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
+def get_gemini_api_key() -> str | None:
+    """Read the Gemini API key when the Flask application is created."""
+    return os.getenv("GEMINI_API_KEY")
 
 
-def rate_limit_message(error: RateLimitError) -> str:
-    """Return an actionable message for the different OpenAI 429 cases."""
-    body = getattr(error, "body", None)
-    if isinstance(body, dict):
-        code = body.get("code") or body.get("error", {}).get("code")
-        if code in {"insufficient_quota", "credit_balance_exhausted", "organization_usage_limit_exceeded", "organization_spend_limit_exceeded", "project_spend_limit_exceeded"}:
-            return "OpenAI API quota or billing limit reached. Check your OpenAI API billing, credits, and usage limits, then try again."
+def _error_status(error: Exception) -> int | None:
+    """Extract an HTTP status from a Gemini SDK error when available."""
+    for name in ("status_code", "status"):
+        value = getattr(error, name, None)
+        if isinstance(value, int):
+            return value
+    return None
 
+
+def rate_limit_message(error: Exception) -> str:
+    """Return an actionable message for Gemini quota/rate-limit failures."""
     message = str(error).lower()
-    if "insufficient_quota" in message or "quota" in message or "credit_balance" in message:
-        return "OpenAI API quota or billing limit reached. Check your OpenAI API billing, credits, and usage limits, then try again."
-
-    return "The AI service is temporarily rate-limiting requests. Please wait a moment and try again."
+    if any(token in message for token in ("quota", "resource_exhausted", "resource exhausted", "billing")):
+        return "Gemini API quota or billing limit reached. Check your Gemini API usage, quota, and billing, then try again."
+    return "The Gemini AI service is temporarily rate-limiting requests. Please wait a moment and try again."
 
 
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
-    api_key = get_openai_api_key()
-    client = OpenAI(api_key=api_key) if api_key else None
+    api_key = get_gemini_api_key()
+    client = genai.Client(api_key=api_key) if api_key else None
 
     @app.get("/")
     def index():
@@ -103,32 +102,36 @@ def create_app() -> Flask:
             return jsonify({"error": "Unknown prompt variant."}), 400
 
         if client is None:
-            return jsonify({"error": "AI service is not configured yet. Add OPENAI_API_KEY to the server environment."}), 503
+            return jsonify({"error": "AI service is not configured yet. Add GEMINI_API_KEY to the server environment."}), 503
 
         started = time.perf_counter()
         try:
-            response = client.chat.completions.create(
+            response = client.models.generate_content(
                 model=MODEL,
-                messages=[
-                    {"role": "system", "content": variant["system"]},
-                    {"role": "user", "content": user_input},
-                ],
-                temperature=0.7,
-                timeout=45,
+                contents=user_input,
+                config=types.GenerateContentConfig(
+                    system_instruction=variant["system"],
+                    temperature=0.7,
+                    candidate_count=1,
+                ),
             )
-            content = response.choices[0].message.content
+            content = response.text
             if not content:
-                return jsonify({"error": "The AI service returned an empty response."}), 502
-        except APITimeoutError:
-            return jsonify({"error": "The AI service took too long to respond. Please try again."}), 504
-        except RateLimitError as error:
-            return jsonify({"error": rate_limit_message(error)}), 429
-        except APIConnectionError:
-            return jsonify({"error": "Unable to reach the AI service. Please try again."}), 502
-        except APIError:
-            return jsonify({"error": "The AI service returned an error. Please try again."}), 502
-        except Exception:
-            app.logger.exception("Unexpected AI request failure")
+                return jsonify({"error": "The Gemini AI service returned an empty response."}), 502
+        except Exception as error:
+            status = _error_status(error)
+            message = str(error).lower()
+
+            if status in {401, 403} or "api key" in message or "authentication" in message:
+                return jsonify({"error": "The Gemini API key is invalid or not authorized. Check the Gemini API key and project settings."}), 502
+            if status == 429 or "resource_exhausted" in message or "quota" in message or "rate limit" in message:
+                return jsonify({"error": rate_limit_message(error)}), 429
+            if status in {408, 504} or "timeout" in message:
+                return jsonify({"error": "The Gemini AI service took too long to respond. Please try again."}), 504
+            if "connection" in message or "connect" in message:
+                return jsonify({"error": "Unable to reach the Gemini AI service. Please try again."}), 502
+
+            app.logger.exception("Unexpected Gemini request failure")
             return jsonify({"error": "Something went wrong while generating the response."}), 500
 
         return jsonify({
@@ -153,8 +156,6 @@ def create_app() -> Flask:
         if not isinstance(data.get("output"), str) or not data["output"].strip():
             return jsonify({"error": "Feedback output is required."}), 400
 
-        # Stateless feedback is deliberate for Render: filesystem-backed JSON is
-        # not durable across instances/redeploys. The client confirms submission.
         return jsonify({"status": "accepted"}), 202
 
     @app.get("/api/feedback/stats")
