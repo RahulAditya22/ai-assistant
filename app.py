@@ -12,6 +12,7 @@ from openai import APIConnectionError, APIError, APITimeoutError, OpenAI, RateLi
 
 MAX_INPUT_LENGTH = int(os.getenv("MAX_INPUT_LENGTH", "12000"))
 MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("OPEN_AI_API_KEY")
 
 PROMPT_LIBRARY: dict[str, list[dict[str, str]]] = {
     "answer": [
@@ -40,7 +41,7 @@ PROMPT_LIBRARY: dict[str, list[dict[str, str]]] = {
 def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = 256 * 1024
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY")) if os.getenv("OPENAI_API_KEY") else None
+    client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
     @app.get("/")
     def index():
