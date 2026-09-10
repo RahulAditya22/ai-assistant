@@ -1,6 +1,8 @@
 import pytest
 
-from app import MAX_INPUT_LENGTH, PROMPT_LIBRARY, create_app
+from openai import RateLimitError
+
+from app import MAX_INPUT_LENGTH, PROMPT_LIBRARY, create_app, rate_limit_message
 
 
 class FakeMessage:
@@ -65,6 +67,27 @@ def test_alternate_key_spelling_is_supported(monkeypatch):
     })
     assert response.status_code == 200
     assert response.get_json()["result"] == "Mocked AI response"
+
+
+def test_quota_rate_limit_message_is_actionable():
+    error = RateLimitError(
+        "quota exceeded",
+        response=None,
+        body={"error": {"code": "insufficient_quota"}},
+    )
+    message = rate_limit_message(error)
+    assert "quota or billing limit" in message
+    assert "billing" in message
+
+
+def test_temporary_rate_limit_message_is_actionable():
+    error = RateLimitError(
+        "rate limit reached",
+        response=None,
+        body={"error": {"code": "rate_limit_exceeded"}},
+    )
+    message = rate_limit_message(error)
+    assert "temporarily rate-limiting" in message
 
 
 @pytest.mark.parametrize("function, prompt_id", [
