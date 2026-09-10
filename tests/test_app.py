@@ -28,6 +28,7 @@ class FakeClient:
 @pytest.fixture()
 def app(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPEN_AI_API_KEY", raising=False)
     monkeypatch.setattr("app.OpenAI", lambda api_key: FakeClient())
     application = create_app()
     application.config.update(TESTING=True)
@@ -49,6 +50,21 @@ def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.get_json()["status"] == "ok"
+
+
+def test_alternate_key_spelling_is_supported(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPEN_AI_API_KEY", "test-key")
+    monkeypatch.setattr("app.OpenAI", lambda api_key: FakeClient())
+    application = create_app()
+    application.config.update(TESTING=True)
+    response = application.test_client().post("/api/run", json={
+        "function": "answer",
+        "prompt_id": "concise",
+        "input": "Hello",
+    })
+    assert response.status_code == 200
+    assert response.get_json()["result"] == "Mocked AI response"
 
 
 @pytest.mark.parametrize("function, prompt_id", [
@@ -100,6 +116,7 @@ def test_large_input_rejected(client):
 
 def test_missing_key_is_clean(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPEN_AI_API_KEY", raising=False)
     application = create_app()
     application.config.update(TESTING=True)
     response = application.test_client().post("/api/run", json={
