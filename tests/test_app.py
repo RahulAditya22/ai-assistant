@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from app import MAX_INPUT_LENGTH, PROMPT_LIBRARY, create_app
@@ -30,11 +28,6 @@ class FakeClient:
 @pytest.fixture()
 def app(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    application = create_app()
-    application.config.update(TESTING=True)
-    # Replace the real client created by create_app with a harmless mock.
-    application.view_functions["run_function"].__globals__["OpenAI"]
-    # The closure holds the client, so recreate the app with OpenAI patched.
     monkeypatch.setattr("app.OpenAI", lambda api_key: FakeClient())
     application = create_app()
     application.config.update(TESTING=True)
@@ -90,11 +83,7 @@ def test_invalid_run_requests(client, payload):
 
 
 def test_malformed_json(client):
-    response = client.post(
-        "/api/run",
-        data="{bad json",
-        content_type="application/json",
-    )
+    response = client.post("/api/run", data="{bad json", content_type="application/json")
     assert response.status_code == 400
     assert response.get_json()["error"]
 
