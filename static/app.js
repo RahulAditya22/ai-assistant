@@ -6,8 +6,8 @@ const status = (m, show = true) => {
 
 async function api(url, opt = {}) {
   const r = await fetch(url, opt);
-  const d = await r.json().catch(() => ({ error: 'Unexpected server response' }));
-  if (!r.ok) throw new Error(d.error || 'Request failed');
+  const d = await r.json().catch(() => ({ error: `Server returned HTTP ${r.status}` }));
+  if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
   return d;
 }
 
@@ -26,17 +26,39 @@ async function loadDocs() {
     <span><strong>${esc(d.name)}</strong><small>${d.pages || 1} page(s) · ${Number(d.char_count || 0).toLocaleString()} chars · ${esc(d.file_type.toUpperCase())}</small></span></label></div>`).join('') : '<p style="margin-top:14px">No documents yet.</p>';
 }
 
+$('#file').addEventListener('change', () => {
+  const f = $('#file').files[0];
+  $('#fileLabel').textContent = f ? f.name : 'Upload PDF, TXT or DOCX';
+  $('#fileHint').textContent = f ? `${(f.size / 1024 / 1024).toFixed(2)} MB · ready to process` : 'Files are extracted and indexed locally.';
+});
+
 $('#uploadForm').addEventListener('submit', async e => {
   e.preventDefault();
   const f = $('#file').files[0];
   if (!f) return status('Choose a file first.');
-  status('Extracting text and building indexes…');
+  if (f.size === 0) return status('The selected file is empty.');
+  if (f.size > 20 * 1024 * 1024) return status('File is too large. Maximum size is 20 MB.');
+
+  const button = $('#uploadButton');
+  button.disabled = true;
+  button.textContent = 'Processing…';
+  status(`Uploading and processing ${f.name}…`);
   try {
-    const fd = new FormData(); fd.append('file', f);
+    const fd = new FormData();
+    fd.append('file', f, f.name);
     const d = await api('/api/upload', { method:'POST', body:fd });
     status(`Processed ${d.name}: ${d.chunks} chunks, ${d.edges} graph relationships.`);
-    await loadDocs(); await graph();
-  } catch (err) { status(err.message); }
+    $('#file').value = '';
+    $('#fileLabel').textContent = 'Upload another PDF, TXT or DOCX';
+    $('#fileHint').textContent = 'The document is now available in the library.';
+    await loadDocs();
+    await graph();
+  } catch (err) {
+    status(`Upload failed: ${err.message}`);
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Process document';
+  }
 });
 
 async function ask(q) {
