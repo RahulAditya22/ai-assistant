@@ -1,16 +1,15 @@
 services:
   - type: web
-    name: ai-assistant
+    name: docreason-ai
     runtime: python
     plan: free
     region: singapore
+    branch: main
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 90
-    autoDeploy: true
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
     envVars:
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: GEMINI_MODEL
-        value: gemini-3.8-flash
-      - key: MAX_INPUT_LENGTH
-        value: "12000"
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_PATH
+        value: /opt/render/project/src/data/docagent.db
+    healthCheckPath: /health

@@ -1,0 +1,5 @@
+[
+ {"question":"What is a prerequisite for NLP?","expected_terms":["prerequisite","machine learning"]},
+ {"question":"Is Python an indirect prerequisite for NLP?","expected_path":["python","machine learning","nlp"]},
+ {"question":"What is quantum teleportation?","unsupported":true}
+]

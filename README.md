@@ -1,93 +1,93 @@
-# AI Assistant
+# DocReason — Intelligent Document Reasoning & Question Answering Agent
 
-A production-ready Flask web application for prompt-engineering experiments powered by Google Gemini. It provides four AI functions, each with three prompt variants: question answering, text summarization, creative content generation, and practical advice.
+DocReason is a document-grounded AI/NLP application for PDF, TXT and DOCX files. It combines classical information retrieval, corpus-trained Word2Vec semantic retrieval, explainable knowledge-graph reasoning and extractive QA. No external LLM is required for the core path.
+
+## Core principle
+
+Uploaded documents are the source of truth. Answers are selected from retrieved passages, while multi-hop relationship answers expose the graph path used for inference. If evidence is weak, the system returns an explicit insufficient-evidence response rather than inventing facts.
 
 ## Features
 
-- Four core AI functions with 3 prompt variants each.
-- Gemini 3.8 Flash backend using the official Google Gen AI Python SDK.
-- Input validation and maximum request size protection.
-- Friendly handling for missing API keys, quota/rate limits, authentication errors, timeouts, connection failures, and upstream API errors.
-- Responsive browser interface with accessible labels, keyboard focus states, loading/status messages, and mobile layout.
-- Feedback buttons and a deployment-safe stateless feedback endpoint. The app intentionally does not write feedback to the local filesystem because Render service filesystems are not a durable application database.
-- `/health` endpoint for deployment checks.
+- PDF/TXT/DOCX extraction with page metadata where available
+- SQLite document/chunk/relationship store
+- Tokenization, sentence segmentation, normalization, stopword handling, stemming, lemmatization and n-grams
+- Smoothed trigram language model and perplexity
+- Rule POS and HMM POS educational baselines
+- CFG/CYK educational parser
+- TF-IDF + bigram retrieval
+- Corpus-trained Word2Vec semantic retrieval
+- Latent semantic vectors via SVD
+- Explainable knowledge graph and multi-hop prerequisite reasoning
+- BFS/DFS/UCS/A*/greedy-style weighted search utilities
+- Forward/backward chaining
+- Decision-tree query-classification and KMeans clustering baselines
+- Evidence, source metadata, retrieval scores and confidence
+- Extractive summarization
+- Responsive presentation-ready UI
+- Unit/API/integration tests and deterministic evaluation fixture
 
-## Project structure
+## Architecture
 
-```text
-.
-├── app.py
-├── requirements.txt
-├── render.yaml
-├── .env.example
-├── .gitignore
-├── templates/
-│   └── index.html
-├── static/
-│   ├── script.js
-│   └── style.css
-└── tests/
-    └── test_app.py
-```
-
-## Environment variables
-
-Set these on the server or in a local environment. Never commit `.env` or an API key.
+See `docs/architecture.md`.
 
 ```text
-GEMINI_API_KEY=
-GEMINI_MODEL=gemini-3.8-flash
-MAX_INPUT_LENGTH=12000
+Upload → Extract → NLP preprocess → Chunk → SQLite
+                                      ↓
+                    TF-IDF + SVD + Word2Vec retrieval
+                                      ↓
+                       Query classification / routing
+                         ↙          ↓           ↘
+                    Evidence   Graph reasoning  Summary
+                         ↘          ↓           ↙
+                         Grounded answer + evidence
 ```
 
-`GEMINI_API_KEY` is the only secret required by the application.
+## Syllabus mapping
+
+NLP: tokenization, sentence segmentation, normalization, stopwords, stemming/lemmatization, n-grams, smoothing, perplexity, POS, HMM, CFG/CYK, TF-IDF, cosine similarity, Word2Vec, embeddings, semantic similarity, conservative relation extraction, extractive summarization and semantic search.
+
+AI: intelligent-agent routing, state-space search, BFS/DFS/UCS/A*/heuristics, knowledge representation, propositional-style forward/backward chaining, bounded FOL-style subject/relation/object representation, supervised decision-tree classification, unsupervised KMeans clustering and optimization-ready retrieval evaluation. Features that do not improve grounded QA are isolated rather than forced into production.
 
 ## Local setup
 
 ```bash
 python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS/Linux
-source .venv/bin/activate
+# Windows: .venv\\Scripts\\activate
+# macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
-```
-
-Then configure `GEMINI_API_KEY` in your environment and run:
-
-```bash
 python app.py
 ```
 
 Open `http://127.0.0.1:5000`.
 
-The application also starts without an API key; AI requests return a clear `503` configuration error instead of crashing.
-
-## Tests
-
-Run the full mocked regression suite with:
+## Testing and evaluation
 
 ```bash
 pytest -q
+python scripts/evaluate.py
 ```
 
-The tests cover startup, homepage, health, all prompt variants, validation, malformed JSON, large inputs, missing API key behavior, Gemini quota/rate-limit handling, feedback validation, feedback handling, stats, and API 404 behavior. The Gemini service is mocked; no real API credits are required.
+Evaluation output must be regenerated after meaningful changes. Do not present stale metrics as current benchmarks.
 
-## Deployment on Render
+## API
 
-This repository includes `render.yaml` for a Python web service. Render uses:
+- `GET /health`
+- `GET /api/documents`
+- `POST /api/upload` — multipart field `file`
+- `POST /api/ask` — `{ "question": "...", "document_ids": [1,2] }`
+- `GET /api/graph`
+- `POST /api/experimental`
 
-```text
-Build: pip install -r requirements.txt
-Start: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 90
-```
+## Deployment
 
-Set `GEMINI_API_KEY` as a Render environment variable and keep it server-side. Set `GEMINI_MODEL` to `gemini-3.8-flash` unless you intentionally choose another compatible Gemini model.
+Render is configured in `render.yaml` with Gunicorn and `/health`. Docker support is also included.
 
-The `/health` endpoint reports whether the Gemini key is configured and is suitable for a basic service health check.
+SQLite is suitable for a free single-instance demo but is not durable across every Render lifecycle event. A scaled production deployment should replace it with managed Postgres/object storage without changing the service interfaces.
 
-## Production considerations
+## Reliability/security
 
-The application disables Flask debug mode in production. Upstream exception details are not returned to users. User input is bounded, malformed API requests are rejected, and frontend code avoids rendering raw JavaScript/network exceptions.
+Upload allow-list, request-size limits, secure temporary files, SHA-256 duplicate detection, parameterized SQL, friendly production errors, no source-control secrets, and explicit unsupported-question handling are included.
 
-Feedback is deliberately stateless in this lightweight deployment. To retain feedback across deployments or instances, connect `/api/feedback` to a managed database such as Render Postgres rather than relying on a local JSON file.
+## Limitations / future work
+
+Scanned PDFs require OCR; tables are not structurally parsed; relation extraction is conservative; Word2Vec quality depends on corpus size; SQLite is not suitable for horizontal scaling. Future work can add OCR, table extraction, managed vector storage, stronger relation extraction and optional evidence-constrained LLM phrasing.
